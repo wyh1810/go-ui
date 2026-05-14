@@ -71,9 +71,6 @@ install_base() {
     fedora)
         dnf -y update && dnf install -y -q wget curl tar tzdata
         ;;
-    arch | manjaro | parch)
-        pacman -Syu && pacman -Syu --noconfirm wget curl tar tzdata
-        ;;
     *)
         apt-get update && apt-get install -y -q wget curl tar tzdata
         ;;
@@ -135,13 +132,14 @@ config_after_install() {
 install_go-ui() {
     cd /tmp/
 
-    # 固定版本，不请求 GitHub API
-    last_version="1.0.0"
-    echo -e "Installing go-ui ${last_version}..."
+    ###########################################################################
+    # 🔥 关键修复：这里彻底删除了获取版本的 Github API 请求，永不报错！
+    ###########################################################################
+    last_version="custom"
+    echo -e "🚀 Installing go-ui ${last_version}..."
 
-    # 直接从你仓库下载打包好的文件（关键修复）
-    wget -N --no-check-certificate -O /tmp/go-ui-linux-$(arch).tar.gz \
-    https://github.com/wyh1810/go-ui/raw/main/build/go-ui-linux-$(arch).tar.gz
+    # 直接下载主程序
+    wget -N --no-check-certificate -O /tmp/go-ui-linux-amd64.tar.gz https://github.com/wyh1810/go-ui/raw/main/go-ui-linux-amd64.tar.gz
 
     if [[ $? -ne 0 ]]; then
         echo -e "${red}Download failed!${plain}"
@@ -153,11 +151,10 @@ install_go-ui() {
         systemctl stop sing-box
     fi
 
-    tar zxvf go-ui-linux-$(arch).tar.gz
-    rm go-ui-linux-$(arch).tar.gz -f
+    tar zxvf go-ui-linux-amd64.tar.gz
+    rm go-ui-linux-amd64.tar.gz -f
 
-    wget --no-check-certificate -O /usr/bin/go-ui \
-    https://raw.githubusercontent.com/wyh1810/go-ui/main/go-ui.sh
+    wget --no-check-certificate -O /usr/bin/go-ui https://raw.githubusercontent.com/wyh1810/go-ui/main/go-ui.sh
 
     chmod +x go-ui/gui go-ui/bin/sing-box go-ui/bin/runSingbox.sh /usr/bin/go-ui
     cp -rf go-ui /usr/local/
@@ -170,7 +167,7 @@ install_go-ui() {
     systemctl enable go-ui --now
     systemctl enable sing-box --now
 
-    echo -e "${green}go-ui ${last_version} installation finished!${plain}"
+    echo -e "${green}✅ go-ui installed successfully!${plain}"
     go-ui help
 }
 
