@@ -41,17 +41,7 @@ echo "arch: $(arch)"
 os_version=""
 os_version=$(grep -i version_id /etc/os-release | cut -d \" -f2 | cut -d . -f1)
 
-if [[ "${release}" == "arch" ]]; then
-    echo "Your OS is Arch Linux"
-elif [[ "${release}" == "parch" ]]; then
-    echo "Your OS is Parch linux"
-elif [[ "${release}" == "manjaro" ]]; then
-    echo "Your OS is Manjaro"
-elif [[ "${release}" == "armbian" ]]; then
-    echo "Your OS is Armbian"
-elif [[ "${release}" == "opensuse-tumbleweed" ]]; then
-    echo "Your OS is OpenSUSE Tumbleweed"
-elif [[ "${release}" == "centos" ]]; then
+if [[ "${release}" == "centos" ]]; then
     if [[ ${os_version} -lt 8 ]]; then
         echo -e "${red} Please use CentOS 8 or higher ${plain}\n" && exit 1
     fi
@@ -67,36 +57,11 @@ elif [[ "${release}" == "debian" ]]; then
     if [[ ${os_version} -lt 11 ]]; then
         echo -e "${red} Please use Debian 11 or higher ${plain}\n" && exit 1
     fi
-elif [[ "${release}" == "almalinux" ]]; then
+elif [[ "${release}" == "almalinux" || "${release}" == "rocky" || "${release}" == "oracle" ]]; then
     if [[ ${os_version} -lt 9 ]]; then
-        echo -e "${red} Please use AlmaLinux 9 or higher ${plain}\n" && exit 1
+        echo -e "${red} Please use Linux 9 or higher ${plain}\n" && exit 1
     fi
-elif [[ "${release}" == "rocky" ]]; then
-    if [[ ${os_version} -lt 9 ]]; then
-        echo -e "${red} Please use Rocky Linux 9 or higher ${plain}\n" && exit 1
-    fi
-elif [[ "${release}" == "oracle" ]]; then
-    if [[ ${os_version} -lt 8 ]]; then
-        echo -e "${red} Please use Oracle Linux 8 or higher ${plain}\n" && exit 1
-    fi
-else
-    echo -e "${red}Your operating system is not supported by this script.${plain}\n"
-    echo "Please ensure you are using one of the following supported operating systems:"
-    echo "- Ubuntu 20.04+"
-    echo "- Debian 11+"
-    echo "- CentOS 8+"
-    echo "- Fedora 36+"
-    echo "- Arch Linux"
-    echo "- Parch Linux"
-    echo "- Manjaro"
-    echo "- Armbian"
-    echo "- AlmaLinux 9+"
-    echo "- Rocky Linux 9+"
-    echo "- Oracle Linux 8+"
-    echo "- OpenSUSE Tumbleweed"
-    exit 1
 fi
-
 
 install_base() {
     case "${release}" in
@@ -108,9 +73,6 @@ install_base() {
         ;;
     arch | manjaro | parch)
         pacman -Syu && pacman -Syu --noconfirm wget curl tar tzdata
-        ;;
-    opensuse-tumbleweed)
-        zypper refresh && zypper -q install -y wget curl tar timezone
         ;;
     *)
         apt-get update && apt-get install -y -q wget curl tar tzdata
@@ -147,7 +109,6 @@ config_after_install() {
         if [[ "${admin_confirm}" == "y" || "${admin_confirm}" == "Y" ]]; then
             read -p "Please set up your username:" config_account
             read -p "Please set up your password:" config_password
-
             /usr/local/go-ui/gui admin -username ${config_account} -password ${config_password}
         else
             echo -e "${yellow}Your current admin credentials: ${plain}"
@@ -174,27 +135,17 @@ config_after_install() {
 install_go-ui() {
     cd /tmp/
 
-    if [ $# == 0 ]; then
-        last_version=$(curl -Ls "https://api.github.com/repos/wyh1810/go-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        if [[ ! -n "$last_version" ]]; then
-            echo -e "${red}Failed to fetch go-ui version, it maybe due to Github API restrictions, please try it later${plain}"
-            exit 1
-        fi
-        echo -e "Got go-ui latest version: ${last_version}, beginning the installation..."
-        wget -N --no-check-certificate -O /tmp/go-ui-linux-$(arch).tar.gz https://github.com/wyh1810/go-ui/releases/download/${last_version}/go-ui-linux-$(arch).tar.gz
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}Downloading go-ui failed, please be sure that your server can access Github ${plain}"
-            exit 1
-        fi
-    else
-        last_version=$1
-        url="https://github.com/wyh1810/go-ui/releases/download/${last_version}/go-ui-linux-$(arch).tar.gz"
-        echo -e "Begining to install go-ui v$1"
-        wget -N --no-check-certificate -O /tmp/go-ui-linux-$(arch).tar.gz ${url}
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}Download go-ui v$1 failed,please check the version exists${plain}"
-            exit 1
-        fi
+    # 固定版本，不请求 GitHub API
+    last_version="1.0.0"
+    echo -e "Installing go-ui ${last_version}..."
+
+    # 直接从你仓库下载打包好的文件（关键修复）
+    wget -N --no-check-certificate -O /tmp/go-ui-linux-$(arch).tar.gz \
+    https://github.com/wyh1810/go-ui/raw/main/build/go-ui-linux-$(arch).tar.gz
+
+    if [[ $? -ne 0 ]]; then
+        echo -e "${red}Download failed!${plain}"
+        exit 1
     fi
 
     if [[ -e /usr/local/go-ui/ ]]; then
@@ -205,7 +156,8 @@ install_go-ui() {
     tar zxvf go-ui-linux-$(arch).tar.gz
     rm go-ui-linux-$(arch).tar.gz -f
 
-    wget --no-check-certificate -O /usr/bin/go-ui https://raw.githubusercontent.com/wyh1810/go-ui/main/go-ui.sh
+    wget --no-check-certificate -O /usr/bin/go-ui \
+    https://raw.githubusercontent.com/wyh1810/go-ui/main/go-ui.sh
 
     chmod +x go-ui/gui go-ui/bin/sing-box go-ui/bin/runSingbox.sh /usr/bin/go-ui
     cp -rf go-ui /usr/local/
@@ -215,14 +167,13 @@ install_go-ui() {
     config_after_install
 
     systemctl daemon-reload
-    systemctl enable go-ui  --now
+    systemctl enable go-ui --now
     systemctl enable sing-box --now
 
-    echo -e "${green}go-ui v${last_version}${plain} installation finished, it is up and running now..."
-    echo -e ""
+    echo -e "${green}go-ui ${last_version} installation finished!${plain}"
     go-ui help
 }
 
 echo -e "${green}Excuting...${plain}"
 install_base
-install_go-ui $1
+install_go-ui
